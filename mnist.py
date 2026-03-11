@@ -1,0 +1,90 @@
+from pathlib import Path
+import struct
+from typing import Tuple
+
+import numpy as np
+
+
+DATASETS_DIR = Path(__file__).resolve().parent / "datasets"
+TRAIN_IMAGES_FILE = DATASETS_DIR / "train-images-idx3-ubyte"
+TRAIN_LABELS_FILE = DATASETS_DIR / "train-labels-idx1-ubyte"
+ASCII_GRADIENT = " .:-=+*#%@"
+
+def load_training_data() -> Tuple[np.ndarray, np.ndarray]:
+    def _read_mnist_images(path: Path) -> np.ndarray:
+        with path.open("rb") as f:
+            magic, count, rows, cols = struct.unpack(">IIII", f.read(16))
+            if magic != 2051:
+                raise ValueError(f"Unexpected image file magic number in {path}: {magic}")
+
+            image_data = np.frombuffer(f.read(), dtype=np.uint8)
+
+        expected_size = count * rows * cols
+        if image_data.size != expected_size:
+            raise ValueError(
+                f"Image file size mismatch in {path}: expected {expected_size} bytes, got {image_data.size}"
+            )
+
+        return image_data.reshape(count, rows * cols, 1)
+
+
+    def _read_mnist_labels(path: Path) -> np.ndarray:
+        with path.open("rb") as f:
+            magic, count = struct.unpack(">II", f.read(8))
+            if magic != 2049:
+                raise ValueError(f"Unexpected label file magic number in {path}: {magic}")
+
+            labels = np.frombuffer(f.read(), dtype=np.uint8)
+
+        if labels.size != count:
+            raise ValueError(
+                f"Label file size mismatch in {path}: expected {count} labels, got {labels.size}"
+            )
+
+        return labels
+
+    if not DATASETS_DIR.is_dir():
+        raise FileNotFoundError(
+            f"Missing dataset directory: {DATASETS_DIR}. "
+            "Place the MNIST training files in datasets/."
+        )
+
+    if not TRAIN_IMAGES_FILE.is_file():
+        raise FileNotFoundError(f"Missing training images file: {TRAIN_IMAGES_FILE}")
+
+    if not TRAIN_LABELS_FILE.is_file():
+        raise FileNotFoundError(f"Missing training labels file: {TRAIN_LABELS_FILE}")
+
+    images = _read_mnist_images(TRAIN_IMAGES_FILE)
+    labels = _read_mnist_labels(TRAIN_LABELS_FILE)
+
+    if images.shape[0] != labels.shape[0]:
+        raise ValueError(
+            "Training image count does not match label count: "
+            f"{images.shape[0]} != {labels.shape[0]}"
+        )
+
+    return images, labels
+
+
+def render_image(image: np.ndarray, rows: int = 28, cols: int = 28) -> str:
+    flat_image = np.asarray(image, dtype=np.uint8).reshape(rows * cols)
+    pixels = flat_image.reshape(rows, cols)
+    gradient = np.array(list(ASCII_GRADIENT))
+
+    # Spread 0-255 pixel intensities across the available ASCII shades.
+    indices = (pixels.astype(np.uint16) * (len(gradient) - 1)) // 255
+    ascii_rows = ["".join(gradient[row]) for row in indices]
+    rendered = "\n".join(ascii_rows)
+    print(rendered)
+    return rendered
+
+
+if __name__ == "__main__":
+    images, labels = load_training_data()
+    print(f"images shape: {images.shape}")
+    print(f"labels shape: {labels.shape}")
+    print(f"images[0] shape: {images[0].shape}")
+    print(f"labels[0]: {labels[0]}")
+    render_image(images[3])
+    print(labels[3])
