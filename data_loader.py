@@ -46,7 +46,9 @@ def _read_mnist_labels(path: Path) -> np.ndarray:
     return labels
 
 
-def _load_dataset(images_file: Path, labels_file: Path, dataset_name: str) -> Tuple[np.ndarray, np.ndarray]:
+def _load_dataset(
+    images_file: Path, labels_file: Path, dataset_name: str
+) -> Tuple[np.ndarray, np.ndarray]:
     if not DATASETS_DIR.is_dir():
         raise FileNotFoundError(
             f"Missing dataset directory: {DATASETS_DIR}. "
