@@ -8,6 +8,8 @@ import numpy as np
 DATASETS_DIR = Path(__file__).resolve().parent / "datasets"
 TRAIN_IMAGES_FILE = DATASETS_DIR / "train-images-idx3-ubyte"
 TRAIN_LABELS_FILE = DATASETS_DIR / "train-labels-idx1-ubyte"
+TEST_IMAGES_FILE = DATASETS_DIR / "t10k-images-idx3-ubyte"
+TEST_LABELS_FILE = DATASETS_DIR / "t10k-labels-idx1-ubyte"
 ASCII_GRADIENT = " .:-=+*#%@"
 
 
@@ -44,29 +46,37 @@ def _read_mnist_labels(path: Path) -> np.ndarray:
     return labels
 
 
-def load_training_data() -> Tuple[np.ndarray, np.ndarray]:
+def _load_dataset(images_file: Path, labels_file: Path, dataset_name: str) -> Tuple[np.ndarray, np.ndarray]:
     if not DATASETS_DIR.is_dir():
         raise FileNotFoundError(
             f"Missing dataset directory: {DATASETS_DIR}. "
-            "Place the MNIST training files in datasets/."
+            "Place the MNIST data files in datasets/."
         )
 
-    if not TRAIN_IMAGES_FILE.is_file():
-        raise FileNotFoundError(f"Missing training images file: {TRAIN_IMAGES_FILE}")
+    if not images_file.is_file():
+        raise FileNotFoundError(f"Missing {dataset_name} images file: {images_file}")
 
-    if not TRAIN_LABELS_FILE.is_file():
-        raise FileNotFoundError(f"Missing training labels file: {TRAIN_LABELS_FILE}")
+    if not labels_file.is_file():
+        raise FileNotFoundError(f"Missing {dataset_name} labels file: {labels_file}")
 
-    images = _read_mnist_images(TRAIN_IMAGES_FILE)
-    labels = _read_mnist_labels(TRAIN_LABELS_FILE)
+    images = _read_mnist_images(images_file)
+    labels = _read_mnist_labels(labels_file)
 
     if images.shape[0] != labels.shape[0]:
         raise ValueError(
-            "Training image count does not match label count: "
+            f"{dataset_name.capitalize()} image count does not match label count: "
             f"{images.shape[0]} != {labels.shape[0]}"
         )
 
     return images, labels
+
+
+def load_training_data() -> Tuple[np.ndarray, np.ndarray]:
+    return _load_dataset(TRAIN_IMAGES_FILE, TRAIN_LABELS_FILE, "training")
+
+
+def load_test_data() -> Tuple[np.ndarray, np.ndarray]:
+    return _load_dataset(TEST_IMAGES_FILE, TEST_LABELS_FILE, "test")
 
 
 def render_image(image: np.ndarray, rows: int = 28, cols: int = 28) -> str:

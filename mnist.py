@@ -1,4 +1,4 @@
-from data_loader import load_training_data
+from data_loader import load_training_data, load_test_data
 import numpy as np
 import numpy.typing as npt
 from abc import ABC, abstractmethod
@@ -8,7 +8,6 @@ IMG_DIM = 784
 MLP_HIDDEN_DIM = 32
 N_CLASSES = 10
 LEARNING_RATE = 0.01
-DTYPE = np.float32
 
 
 class Layer(ABC):
@@ -60,7 +59,7 @@ class Linear(Layer):
     def __init__(self, name: str, dim_in: int, dim_out: int):
         super().__init__(name)
         # TODO (anujkalia): Better init
-        self.W = np.random.randn(dim_out, dim_in).astype(DTYPE)
+        self.W = np.random.randn(dim_out, dim_in).astype(np.float32)
 
     def forward(self, x_in: npt.NDArray) -> npt.NDArray:
         self.x_in = x_in
@@ -86,7 +85,7 @@ class LossFn:
         delta = (ground_truth - x_in)
         return np.array([np.sum(delta ** 2)])
     
-    def backward(self, g_out: npt.NDArray):
+    def backward(self, g_out: npt.NDArray) -> npt.NDArray:
         ret = 2 * (self.x_in - self.ground_truth)
         ret = ret.reshape(1, N_CLASSES)
         # print(f"Gradient out of {self.name} = {ret}")
@@ -103,22 +102,24 @@ class MnistClassifier:
 
         self.loss_fn = LossFn(name="loss_fn")
 
-    def forward_backward(self, image: npt.NDArray, label: int, step: int):
-        # One-hot ground-truth
-        ground_truth = np.zeros((N_CLASSES, 1), dtype=DTYPE)
-        ground_truth[label, 0] = 1
 
+    def forward(self, image: npt.NDArray, label: int, step: int) -> tuple[int, np.float32]:
         x = self.matmul1.forward(x_in=image)
-        # print(f"after matmul1: {x=}")
         x = self.relu1.forward(x_in=x)
-        # print(f"after relu1: {x=}")
         x = self.matmul2.forward(x_in=x)
-        # print(f"after matmul2: {x=}")
         x = self.relu2.forward(x_in=x)
-        # print(f"after relu2: {x=}")
+
+        predicted_label = np.argmax(x)
+
+        ground_truth = np.zeros((N_CLASSES, 1), dtype=np.float32)
+        ground_truth[label, 0] = 1
         x = self.loss_fn.forward(x_in=x, ground_truth=ground_truth)
-        # print(f"after loss_fn: {x=}")
-        print(f"loss = {x}")
+
+        return (predicted_label, x.item())
+
+
+    def forward_backward(self, image: npt.NDArray, label: int, step: int) -> tuple[int, np.float32]:
+        predicted_label, loss  = self.forward(image, label, step)
 
         g = self.loss_fn.backward(g_out=np.array([]))
         g = self.relu2.backward(g_out=g)
@@ -126,6 +127,20 @@ class MnistClassifier:
         g = self.relu1.backward(g_out=g)
         g = self.matmul1.backward(g_out=g)
 
+        return predicted_label, loss
+
+def test_accuracy(mnist_classifier: MnistClassifier):
+    test_images, test_labels = load_test_data()
+    num_passed = 0
+    for i in range(test_images.size):
+        image_fp32 = test_images[i].astype(np.float32)
+        image_fp32 = image_fp32 / image_fp32.sum()
+
+        predicted_label, _ = mnist_classifier.forward(image_fp32, label=test_labels[i], step=i)
+        if predicted_label == test_labels[i]:
+            num_passed += 1
+
+    print(f"test_accuracy: {num_passed / test_images.size}")
 
 if __name__ == "__main__":
     np.random.seed(42)
@@ -139,6 +154,10 @@ if __name__ == "__main__":
     c = MnistClassifier()
     n_images = images.size
     for i in range(0, 60000):
-        image_fp32 = images[i].astype(DTYPE)
+        image_fp32 = images[i].astype(np.float32)
         image_fp32 = image_fp32 / image_fp32.sum()
         c.forward_backward(image_fp32, label=labels[i], step=i)
+
+    test_accuracy(c)
+
+    
