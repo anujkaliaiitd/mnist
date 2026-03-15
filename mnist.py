@@ -1,4 +1,5 @@
 from data_loader import load_training_data, load_test_data
+import os
 import numpy as np
 import numpy.typing as npt
 from abc import ABC, abstractmethod
@@ -8,7 +9,7 @@ from typing import Tuple
 IMG_DIM = 784
 MLP_HIDDEN_DIM = 32
 N_CLASSES = 10
-LEARNING_RATE = 0.01
+LEARNING_RATE = float(os.environ.get("LEARNING_RATE", "1.0"))
 
 
 class Layer(ABC):
@@ -72,23 +73,28 @@ class Linear(Layer):
 
         return ret
 
-
 class LossFn:
+    """
+    Softmax + cross-entropy
+    """
     def __init__(self, name: str):
         self.name = name
         self.ground_truth = np.array([])
 
-    def forward(self, x_in: npt.NDArray, ground_truth: npt.NDArray) -> npt.NDArray:
-        self.x_in = x_in
-        self.ground_truth = ground_truth
+    def forward(self, x_in: npt.NDArray, label: int) -> np.float32:
+        self.label = label
 
-        delta = ground_truth - x_in
-        return np.array([np.sum(delta**2)])
+        x = x_in - np.max(x_in)
+        exp_x = np.exp(x)
+        self.probs = exp_x / np.sum(exp_x)
+
+        ret = -np.log(self.probs[label])
+        return ret
 
     def backward(self, g_out: npt.NDArray) -> npt.NDArray:
-        ret = 2 * (self.x_in - self.ground_truth)
+        ret = self.probs
+        ret[self.label] -= 1
         ret = ret.reshape(1, N_CLASSES)
-        # print(f"Gradient out of {self.name} = {ret}")
         return ret
 
 
@@ -98,7 +104,7 @@ class MnistClassifier:
         self.relu1 = ReLU(name="relu1")
 
         self.matmul2 = Linear(name="matmul2", dim_in=MLP_HIDDEN_DIM, dim_out=N_CLASSES)
-        self.relu2 = ReLU(name="relu2")
+        #self.relu2 = ReLU(name="relu2")
 
         self.loss_fn = LossFn(name="loss_fn")
 
@@ -108,13 +114,11 @@ class MnistClassifier:
         x = self.matmul1.forward(x_in=image)
         x = self.relu1.forward(x_in=x)
         x = self.matmul2.forward(x_in=x)
-        x = self.relu2.forward(x_in=x)
+        # x = self.relu2.forward(x_in=x)
 
         predicted_label = int(np.argmax(x))
 
-        ground_truth = np.zeros((N_CLASSES, 1), dtype=np.float32)
-        ground_truth[label, 0] = 1
-        x = self.loss_fn.forward(x_in=x, ground_truth=ground_truth)
+        x = self.loss_fn.forward(x_in=x, label=label)
 
         return predicted_label, np.float32(x.item())
 
@@ -124,7 +128,7 @@ class MnistClassifier:
         predicted_label, loss = self.forward(image, label, step)
 
         g = self.loss_fn.backward(g_out=np.array([]))
-        g = self.relu2.backward(g_out=g)
+        # g = self.relu2.backward(g_out=g)
         g = self.matmul2.backward(g_out=g)
         g = self.relu1.backward(g_out=g)
         g = self.matmul1.backward(g_out=g)
@@ -153,6 +157,7 @@ def test_accuracy(mnist_classifier: MnistClassifier) -> float:
 
 if __name__ == "__main__":
     np.random.seed(42)
+    print(f"learning rate = {LEARNING_RATE}")
 
     images, labels = load_training_data()
     c = MnistClassifier()
