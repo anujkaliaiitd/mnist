@@ -7,9 +7,9 @@ from typing import Tuple
 
 
 IMG_DIM = 784
-MLP_HIDDEN_DIM = 32
+MLP_HIDDEN_DIM = 128
 N_CLASSES = 10
-LEARNING_RATE = float(os.environ.get("LEARNING_RATE", "1.0"))
+LEARNING_RATE = float(os.environ.get("LEARNING_RATE", "0.035"))
 
 
 class Layer(ABC):
@@ -61,15 +61,20 @@ class Linear(Layer):
         super().__init__(name)
         # TODO (anujkalia): Better init
         self.W = np.random.randn(dim_out, dim_in).astype(np.float32)
+        self.B = np.random.randn(dim_out, 1).astype(np.float32)
 
     def forward(self, x_in: npt.NDArray) -> npt.NDArray:
         self.x_in = x_in
-        return self.W @ x_in
+        ret = (self.W @ x_in) + self.B
+        return ret
 
     def _backward(self, g_out: npt.NDArray) -> npt.NDArray:
         dL_dW = g_out.T @ self.x_in.T  # (d_out, 1) @ (1, d_in) = (d_out, d_in)
+        dL_dB = g_out
+
         ret = g_out @ self.W  # (1, d_out) @ (d_out, d_in) = (1, d_in)
         self.W = self.W - (LEARNING_RATE * dL_dW)
+        self.B = self.B - (LEARNING_RATE * dL_dB.T)
 
         return ret
 
@@ -111,7 +116,8 @@ class MnistClassifier:
     def forward(
         self, image: npt.NDArray, label: int, step: int
     ) -> Tuple[int, np.float32]:
-        x = self.matmul1.forward(x_in=image)
+        x = image
+        x = self.matmul1.forward(x_in=x)
         x = self.relu1.forward(x_in=x)
         x = self.matmul2.forward(x_in=x)
         # x = self.relu2.forward(x_in=x)
@@ -144,7 +150,7 @@ def test_accuracy(mnist_classifier: MnistClassifier) -> float:
     num_passed = 0
     for i in range(test_images.shape[0]):
         image_fp32 = test_images[i].astype(np.float32)
-        image_fp32 = image_fp32 / image_fp32.sum()
+        image_fp32 = image_fp32 / 255.0
 
         predicted_label, _ = mnist_classifier.forward(
             image_fp32, label=test_labels[i], step=i
@@ -161,12 +167,15 @@ if __name__ == "__main__":
 
     images, labels = load_training_data()
     c = MnistClassifier()
-    test_accuracy(c)
 
     n_images = images.size
-    for i in range(images.shape[0]):
-        image_fp32 = images[i].astype(np.float32)
-        image_fp32 = image_fp32 / image_fp32.sum()
-        c.forward_backward(image_fp32, label=labels[i], step=i)
 
-    print(f"test accuracy = {test_accuracy(c)}")
+    for passes in range(100):
+        for i in range(images.shape[0]):
+            image_fp32 = images[i].astype(np.float32)
+            image_fp32 = image_fp32 / 255.0
+            c.forward_backward(image_fp32, label=labels[i], step=i)
+        print(f"test accuracy after {passes} passes = {test_accuracy(c)}")
+        permutation = np.random.permutation(images.shape[0])
+        images = images[permutation]
+        labels = labels[permutation]
