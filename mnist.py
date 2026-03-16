@@ -51,7 +51,7 @@ class ReLU(Layer):
 
     def _backward(self, g_out: torch.Tensor) -> torch.Tensor:
         # This layer needs x_in saved, i.e., activation stashing
-        g_in = g_out * (self.x_in.T > 0)
+        g_in = g_out * (self.x_in > 0)
         return g_in
 
 
@@ -68,12 +68,12 @@ class Linear(Layer):
         return ret
 
     def _backward(self, g_out: torch.Tensor) -> torch.Tensor:
-        dL_dW = g_out.T @ self.x_in.T  # (d_out, 1) @ (1, d_in) = (d_out, d_in)
+        dL_dW = g_out @ self.x_in.T  # (d_out, 1) @ (1, d_in) = (d_out, d_in)
         dL_dB = g_out
 
-        ret = g_out @ self.W  # (1, d_out) @ (d_out, d_in) = (1, d_in)
+        ret = self.W.T @ g_out  # (d_in, d_out) @ (d_out, 1) = (d_in, 1)
         self.W = self.W - (LEARNING_RATE * dL_dW)
-        self.B = self.B - (LEARNING_RATE * dL_dB.T)
+        self.B = self.B - (LEARNING_RATE * dL_dB)
 
         return ret
 
@@ -98,7 +98,7 @@ class LossFn:
     def backward(self, g_out: torch.Tensor) -> torch.Tensor:
         ret = self.probs.clone()
         ret[self.label] -= 1
-        ret = ret.reshape(1, N_CLASSES)
+        ret = ret.reshape(N_CLASSES, 1)
         return ret
 
 
